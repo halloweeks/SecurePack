@@ -5,9 +5,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <openssl/sha.h>
-#include "AES_128_ECB.h"
 #include <time.h>
+#include "AES_128_ECB.h"
+#include "sha1.h"
 
 #define CHUNK_SIZE 65536
 
@@ -113,6 +113,13 @@ int main(int argc, const char *argv[]) {
 		return 1;
 	}
 	
+	// DecryptData((uint8_t*)&info, sizeof(info), key);
+	
+	if (info.magic != 0xA74E99D8) {
+		fprintf(stderr, "invalid file signature!\n");
+		return 1;
+	}
+	
 	if (info.version != 1) {
 		fprintf(stderr, "This pack version unsupported!\n");
 		close(pack);
@@ -138,8 +145,10 @@ int main(int argc, const char *argv[]) {
 		return 1;
 	}
 	
-	if (info.encrypted) {
+	if (info.encrypted == 1) {
 		DecryptData(IndexData, info.size, key);
+	} else if (info.encrypted == 2) {
+		XorEncryptDecrypt(IndexData, info.size);
 	}
 	
 	uint8_t hash[20];
@@ -204,8 +213,8 @@ int main(int argc, const char *argv[]) {
 		uint64_t originalFileSize = FileSize;
         uint64_t paddedFileSize = FileSize + (FileSize % AES_BLOCK_SIZE == 0 ? 0 : (AES_BLOCK_SIZE - (FileSize % AES_BLOCK_SIZE)));
 
-		SHA_CTX sha_ctx;
-        SHA1_Init(&sha_ctx);
+		SHA1_CTX ctx;
+        SHA1_Init(&ctx);
 		
 		while (paddedFileSize > 0) {
             size_t bytesToRead = paddedFileSize < CHUNK_SIZE ? paddedFileSize : CHUNK_SIZE;
@@ -228,12 +237,12 @@ int main(int argc, const char *argv[]) {
             write(out, chunk, bytesToWrite);
             originalFileSize -= bytesToWrite;
 
-            SHA1_Update(&sha_ctx, chunk, bytesToWrite);
+            SHA1_Update(&ctx, chunk, bytesToWrite);
 
             paddedFileSize -= bytesToRead;
         }
 		
-		SHA1_Final(hash, &sha_ctx);
+		SHA1_Final(&ctx, hash);
 		
 		if (memcmp(hash, FileHash, 20) != 0) {
 			printf("file %s is corrupted mismatch (CRC).\n", base_name(Filename));

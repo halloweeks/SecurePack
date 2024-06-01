@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <openssl/sha.h>
+#include "sha1.h"
 #include "AES_128_ECB.h"
 #include <time.h>
 
@@ -100,11 +100,11 @@ int main(int argc, const char *argv[]) {
     clock_t start = clock();
     
     FileHeader info;
-    info.encrypted = false; // This will encrypt the index table (contains file information like filename, offset, size, hash, etc)
+    info.encrypted = 0; // This will encrypt the index table (contains file information like filename, offset, size, hash, etc)
     info.magic = 0xA74E99D8;
     info.version = 1;
     
-    uint8_t encrypt_all_files = 1; // It will encrypt all file contents (none=0, aes=1, xor=2)
+    uint8_t encrypt_all_files = 0; // It will encrypt all file contents (none=0, aes=1, xor=2)
     
     uint8_t key[16];
     memset(key, 0x79, 16);
@@ -135,15 +135,26 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
     
-    char MountPoint[] = "../../../";
+    // All files extracted into test folder because is base directory
+    char MountPoint[] = "../../../test/";
+    // All files extracted in current directory
+    // char MountPoint[] = "../../../";
+    // calculate mount point length
     uint32_t MountPointLength = strlen(MountPoint) + 1;
     
     write_data(IndexData, &MountPointLength, 4);
     write_data(IndexData, MountPoint, MountPointLength);
     write_data(IndexData, &count, 4);
     
+    uint32_t FilenameSize = 0;
+    uint64_t FileOffset = 0;
+    uint64_t FileSize = 0;
+    uint8_t FileHash[20];
+    uint8_t Encrypted = encrypt_all_files;
+    uint8_t FileEncryptedHash[20];
+    
     for (int index = 0; index < count; index++) {
-    	offset = lseek(pack, 0, SEEK_CUR);
+    	FileOffset = lseek(pack, 0, SEEK_CUR);
         
         int fd = open(files[index].filename, O_RDONLY);
         
@@ -152,20 +163,19 @@ int main(int argc, const char *argv[]) {
             return 0;
         }
         
-        uint32_t flen = strlen(files[index].filename) + 1;
-        int64_t fsizes = fsize(files[index].filename);
-        uint8_t hash[20] = {0};
+        FilenameSize = strlen(files[index].filename) + 1;
+        FileSize = fsize(files[index].filename);
         
-        write_data(IndexData, &flen, 4);
-        write_data(IndexData, files[index].filename, flen);
+        write_data(IndexData, &FilenameSize, 4);
+        write_data(IndexData, files[index].filename, FilenameSize);
         
-        SHA_CTX sha_ctx;
-        SHA1_Init(&sha_ctx);
+        SHA1_CTX ctx;
+        SHA1_Init(&ctx);
         
         uint8_t padding_size = 0;
         
         while ((len = read(fd, chunk, CHUNK_SIZE)) > 0) {
-        	SHA1_Update(&sha_ctx, chunk, len);
+        	SHA1_Update(&ctx, chunk, len);
         
             padding_size = (len % AES_BLOCK_SIZE == 0) ? 0 : AES_BLOCK_SIZE - (len % AES_BLOCK_SIZE);
             
@@ -183,35 +193,44 @@ int main(int argc, const char *argv[]) {
             write(pack, chunk, len);
         }
         
-        SHA1_Final(hash, &sha_ctx);
+        SHA1_Final(&ctx, FileHash);
         
-        write_data(IndexData, hash, 20);
-        write_data(IndexData, &offset, 8);
-        write_data(IndexData, &fsizes, 8);
-        write_data(IndexData, &encrypt_all_files, 1);
+        write_data(IndexData, FileHash, 20);
+        write_data(IndexData, &FileOffset, 8);
+        write_data(IndexData, &FileSize, 8);
+        write_data(IndexData, &Encrypted, 1);
+        
         printf("added %s\n", files[index].filename);
     }
     
+    // get current position
     info.offset = lseek(pack, 0, SEEK_CUR);
+    // get total index size
     info.size = current_index_offset;
-    
+    // index data require padding
     uint8_t padding_size = (info.size % AES_BLOCK_SIZE == 0) ? 0 : AES_BLOCK_SIZE - (info.size % AES_BLOCK_SIZE);
-    
+    // if needed padding
     if (padding_size != 0) {
+    	// add padding into index data
     	for (uint32_t index = info.size; index < info.size + padding_size; index++) {
     	    IndexData[index] = padding_size;
         }
+        // update index size + padding_size
         info.size += padding_size;
     }
     
+    // store index data sha into 'info.hash'
     SHA1(IndexData, info.size, info.hash);
     
-    if (info.encrypted) {
+    if (info.encrypted == 1) {
     	EncryptData(IndexData, info.size, key);
+    } else if (info.encrypted == 2) {
+    	XorEncryptDecrypt(IndexData, info.size);
     }
     
+    // write index table into pack file
     write(pack, IndexData, info.size);
-    
+    // write pack header at end of pack file
     write(pack, &info, sizeof(info));
     
     // Free allocated memory
