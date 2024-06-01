@@ -63,7 +63,7 @@ To specify the encryption method for files and whether to encrypt the index data
 For example, to pack files with AES encryption for both files and index data:
 ```c
 uint8_t encrypt_all_files = 1; // AES-128 encryption for files
-info.encrypted = true;         // Encrypt index data
+info.encrypted = 0;         // No encryption for index data
 ```
 
 Then run:
