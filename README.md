@@ -56,8 +56,8 @@ To specify the encryption method for files and whether to encrypt the index data
   - `2`: XOR encryption
 
 - `info.encrypted` variable:
-  - `0`: No encryption for index data
-  - `1`: Encrypt index data with AES-128
+  - `0`: No encryption
+  - `1`: AES-128 encryption
   - `2`: XOR Encryption
 
 For example, to pack files with AES encryption for both files and index data:
