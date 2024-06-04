@@ -23,8 +23,8 @@ SecurePack is a utility to pack and unpack files into a custom archive format. T
 
 2. Compile the source code:
     ```sh
-    gcc -o pack pack.c -lssl -lcrypto
-    gcc -o unpack unpack.c -lssl -lcrypto
+    cc pack.c -o pack
+    cc unpack.c -o unpack
     ```
 
 ## Usage
