@@ -21,12 +21,7 @@ SecurePack is a utility to pack and unpack files into a custom archive format. T
     cd SecurePack
     ```
 
-2. Ensure you have the OpenSSL library installed on your system. You can install it using your package manager, for example:
-    ```sh
-    sudo apt-get install libssl-dev
-    ```
-
-3. Compile the source code:
+2. Compile the source code:
     ```sh
     gcc -o pack pack.c -lssl -lcrypto
     gcc -o unpack unpack.c -lssl -lcrypto
