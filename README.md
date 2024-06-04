@@ -13,10 +13,6 @@ SecurePack is a utility to pack and unpack files into a custom archive format. T
 - Automatically creates necessary directories during unpacking.
 - Validates file integrity using SHA-1 hashes.
 
-## Requirements
-
-- OpenSSL library for encryption and hashing functions.
-
 ## Installation
 
 1. Clone the repository:
